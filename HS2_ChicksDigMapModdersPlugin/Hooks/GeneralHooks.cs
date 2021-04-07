@@ -1,4 +1,6 @@
-﻿using HarmonyLib;
+﻿using ADV;
+using ADV.Commands.EventCG;
+using HarmonyLib;
 using HS2;
 using Illusion.Extensions;
 using Manager;
@@ -7,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using UnityEngine;
 using static HS2.GlobalHS2Calc;
 
 namespace HS2_ChicksDigMapModdersPlugin.Hooks
@@ -15,7 +18,57 @@ namespace HS2_ChicksDigMapModdersPlugin.Hooks
     {
         private static BepInEx.Logging.ManualLogSource Log = HS2ChicksDigMapModdersPlugin.Instance.Log;
 
-        [HarmonyPostfix, HarmonyPatch(typeof(LobbyMapSelectUI), "InitList")]
+        [HarmonyFinalizer]
+        [HarmonyPatch(typeof(Setting), "Do")]
+        public static Exception SettingDoFinalizer(ADV.EventCG.Data ___data, string[] ___args, Exception __exception, Setting __instance)
+        {
+            if (HS2ChicksDigMapModdersPlugin.EnableDebugLogging.Value)
+            {
+                Log.LogInfo($"Setting.Do {string.Join(",", ___args)}");
+                Log.LogInfo($"Data {___data}");
+                if (__exception != null)
+                    Log.LogInfo($"Exception Thrown: {__exception.Message} {__exception.StackTrace} ");
+            }
+
+            if (___data == null)
+            {
+                GameObject dataGo = new GameObject("MapData", new Type[] { typeof(ADV.EventCG.Data)});
+                GameObject camPosGo = new GameObject("camPos", new Type[] { typeof(ADV.EventCG.CameraData) });
+                camPosGo.transform.parent = dataGo.transform;
+                ___data = dataGo.GetComponent<ADV.EventCG.Data>();
+                bool hasNo = int.TryParse(___args[2], out int no);
+                if (hasNo)
+                {
+                    Transform transform = ___data.transform;
+                    Transform transform2 = __instance.scenario.commandController.GetChara(no).backup.transform;
+                    transform.position += transform2.position;
+                    transform.rotation *= transform2.rotation;
+                }
+
+                ___data.camRoot = __instance.scenario.advScene.advCamera.transform;
+                ___data.SetChaRoot(__instance.scenario.commandController.Character, __instance.scenario.commandController.Characters);
+                ___data.Next(0, __instance.scenario.commandController.Characters);
+
+                if (HS2ChicksDigMapModdersPlugin.EnableDebugLogging.Value)
+                {
+                    Log.LogInfo($"Created Data {___data}");                    
+                }
+            }
+            return null;
+        }
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(TextScenario), "_RequestNextLine")]
+        public static void TextScenarioRequestNextLine(TextScenario __instance, int ___currentLine)
+        {
+            if (HS2ChicksDigMapModdersPlugin.EnableDebugLogging.Value)
+            {
+                Command command = __instance.CommandPacks[___currentLine].Command;
+                Log.LogInfo($"Executing Command Line: (CommandList Add - {command} {string.Join(",", __instance.CommandPacks[___currentLine].Args)}");
+            }
+        }
+
+            [HarmonyPostfix, HarmonyPatch(typeof(LobbyMapSelectUI), "InitList")]
         public static void InitList(int _eventNo, LobbyMapSelectInfoScrollController ___scrollCtrl)
         {
             if (HS2ChicksDigMapModdersPlugin.EnableDebugLogging.Value)
@@ -48,7 +101,7 @@ namespace HS2_ChicksDigMapModdersPlugin.Hooks
 
             if (HS2ChicksDigMapModdersPlugin.EnableDebugLogging.Value)
             {
-                Log.LogInfo(string.Format("Before Selecting {0} map {1}-{5} useMap {2} used {3} available {4}", _charaInfo.chaFile.parameter.fullname, _charaInfo.mapID, string.Join(" ", _useMap), string.Join(" ", _used), string.Join(" ", Singleton<Game>.Instance.infoEventContentDic[_charaInfo.eventID].goToFemaleMaps), NameForMapId(_charaInfo.mapID)));
+                Log.LogInfo(string.Format("Before Selecting {0} Event {6} map {1}-{5} useMap {2} used {3} available {4}", _charaInfo.chaFile.parameter.fullname, _charaInfo.mapID, string.Join(" ", _useMap), string.Join(" ", _used), string.Join(" ", Singleton<Game>.Instance.infoEventContentDic[_charaInfo.eventID].goToFemaleMaps), NameForMapId(_charaInfo.mapID), _charaInfo.eventID));
             }
 
             int[] goToFemaleMaps = Singleton<Game>.Instance.infoEventContentDic[_charaInfo.eventID].goToFemaleMaps;
@@ -77,7 +130,7 @@ namespace HS2_ChicksDigMapModdersPlugin.Hooks
 
             if (HS2ChicksDigMapModdersPlugin.EnableDebugLogging.Value)
             {
-                Log.LogInfo(string.Format("After Selecting {0} map {1}-{5} useMap {2} used {3} available {4}", _charaInfo.chaFile.parameter.fullname, _charaInfo.mapID, string.Join(" ", _useMap), string.Join(" ", _used), string.Join(" ", list), NameForMapId(_charaInfo.mapID)));
+                Log.LogInfo(string.Format("After Selecting {0} Event {6} map {1}-{5} useMap {2} used {3} available {4}", _charaInfo.chaFile.parameter.fullname, _charaInfo.mapID, string.Join(" ", _useMap), string.Join(" ", _used), string.Join(" ", list), NameForMapId(_charaInfo.mapID), _charaInfo.eventID));
             }
         }
 
@@ -97,7 +150,7 @@ namespace HS2_ChicksDigMapModdersPlugin.Hooks
 
                 if (HS2ChicksDigMapModdersPlugin.EnableDebugLogging.Value)
                 {
-                    Log.LogInfo(string.Format("Before Selecting {0} map {1}-{5} useMap {2} used {3} available {4}", _charaInfos[i].chaFile.parameter.fullname, _charaInfos[i].mapID, string.Join(" ", _useMap), string.Join(" ", _used), string.Join(" ", Singleton<Game>.Instance.infoEventContentDic[_charaInfos[i].eventID].goToFemaleMaps), NameForMapId(_charaInfos[i].mapID)));
+                    Log.LogInfo(string.Format("Before Selecting {0} Event {6} map {1}-{5} useMap {2} used {3} available {4}", _charaInfos[i].chaFile.parameter.fullname, _charaInfos[i].mapID, string.Join(" ", _useMap), string.Join(" ", _used), string.Join(" ", Singleton<Game>.Instance.infoEventContentDic[_charaInfos[i].eventID].goToFemaleMaps), NameForMapId(_charaInfos[i].mapID), _charaInfos[i].eventID));
                 }
 
                 int[] goToFemaleMaps = Singleton<Game>.Instance.infoEventContentDic[_charaInfos[i].eventID].goToFemaleMaps;
@@ -127,7 +180,7 @@ namespace HS2_ChicksDigMapModdersPlugin.Hooks
 
                 if (HS2ChicksDigMapModdersPlugin.EnableDebugLogging.Value)
                 {
-                    Log.LogInfo(string.Format("After Selecting {0} map {1}-{5} useMap {2} used {3} available {4}", _charaInfos[i].chaFile.parameter.fullname, _charaInfos[i].mapID, string.Join(" ", _useMap), string.Join(" ", _used), string.Join(" ", list), NameForMapId(_charaInfos[i].mapID)));
+                    Log.LogInfo(string.Format("After Selecting {0} Event {6} map {1}-{5} useMap {2} used {3} available {4}", _charaInfos[i].chaFile.parameter.fullname, _charaInfos[i].mapID, string.Join(" ", _useMap), string.Join(" ", _used), string.Join(" ", list), NameForMapId(_charaInfos[i].mapID), _charaInfos[i].eventID));
                 }
             }
 
